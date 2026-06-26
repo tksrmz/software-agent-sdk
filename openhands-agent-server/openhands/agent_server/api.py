@@ -50,6 +50,7 @@ from openhands.agent_server.openai.router import (
     check_openai_api_key,
     openai_router,
 )
+from openhands.agent_server.plugins_router import plugins_router
 from openhands.agent_server.profiles_router import profiles_router
 from openhands.agent_server.server_details_router import (
     get_server_info,
@@ -234,6 +235,9 @@ async def api_lifespan(api: FastAPI) -> AsyncIterator[None]:
         mark_initialization_complete()
         logger.info("Server initialization complete - ready to serve requests")
 
+        bash_svc = get_default_bash_event_service()
+        api.state.bash_event_service = bash_svc
+
         async with service:
             api.state.conversation_service = service
 
@@ -241,7 +245,7 @@ async def api_lifespan(api: FastAPI) -> AsyncIterator[None]:
             retention_task: asyncio.Task | None = None
             if config.bash_events_retention_seconds is not None:
                 retention_task = asyncio.create_task(
-                    get_default_bash_event_service().run_retention_cleanup_loop(
+                    bash_svc.run_retention_cleanup_loop(
                         config.bash_events_retention_seconds
                     )
                 )
@@ -345,6 +349,7 @@ def _add_api_routes(app: FastAPI) -> None:
     api_router.include_router(vscode_router)
     api_router.include_router(desktop_router)
     api_router.include_router(skills_router)
+    api_router.include_router(plugins_router)
     api_router.include_router(hooks_router)
     api_router.include_router(llm_router)
     api_router.include_router(mcp_router)
